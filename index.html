@@ -17,7 +17,7 @@
       margin: 0;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(145deg, #2f3f5f 0%, #ffffff 100%);
+      background: linear-gradient(145deg, #244586 0%, #ffffff 100%);
       color: #1f2937;
       position: fixed;
       inset: 0;
@@ -407,9 +407,9 @@
     setInterval(drawMatrix, 35);
   </script>
 
-  <!-- Chat & ResponsiveVoice TTS + Lip Sync Trigger -->
+  <!-- Chat & ResponsiveVoice TTS + Lip Sync Trigger dengan Emotion State -->
   <script>
-    const API_KEY = "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";
+    const API_KEY = "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";
     const BASE_URL = "https://router.huggingface.co/v1";
 
     let chatHistory = [
@@ -439,13 +439,28 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
 
     let isMuted = false;
 
+    // Inisialisasi emotion state jika belum ada
+    if (!window.sakaState) {
+      window.sakaState = {
+        aiTalking: false,
+        ttsSpeaking: false,
+        userTyping: false,
+        idle: true,
+        updateIdle: function() {
+          this.idle = !(this.aiTalking || this.ttsSpeaking || this.userTyping);
+        }
+      };
+    }
+
     if (muteBtn) {
       muteBtn.addEventListener('click', () => {
         isMuted = !isMuted;
         muteBtn.textContent = isMuted ? '🔇' : '🔊';
         if (isMuted) {
           responsiveVoice.cancel();
-          window.isSpeaking = false;                    // ← TAMBAHAN UNTUK LIP SYNC
+          if (window.sakaState) {
+            window.sakaState.ttsSpeaking = false;
+          }
         }
       });
     }
@@ -469,7 +484,11 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
       if (!cleanText) return;
 
       responsiveVoice.cancel();
-      window.isSpeaking = false;                        // ← reset dulu
+      
+      // Reset TTS state
+      if (window.sakaState) {
+        window.sakaState.ttsSpeaking = false;
+      }
 
       responsiveVoice.speak(
         cleanText,
@@ -480,11 +499,15 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
           volume: 0.95,
           onstart: () => {
             console.log("Saka mulai bicara...");
-            window.isSpeaking = true;                   // ← AKTIFKAN LIP SYNC
+            if (window.sakaState) {
+              window.sakaState.ttsSpeaking = true;
+            }
           },
           onend: () => {
             console.log("Saka selesai bicara");
-            window.isSpeaking = false;                  // ← MATIKAN LIP SYNC
+            if (window.sakaState) {
+              window.sakaState.ttsSpeaking = false;
+            }
           }
         }
       );
@@ -498,6 +521,17 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
     textarea.addEventListener('input', () => {
       autoResizeTextarea();
       sendBtn.disabled = textarea.value.trim() === '';
+      
+      // Update userTyping state
+      if (window.sakaState) {
+        window.sakaState.userTyping = textarea.value.trim().length > 0;
+      }
+    });
+
+    textarea.addEventListener('blur', () => {
+      if (window.sakaState) {
+        window.sakaState.userTyping = false;
+      }
     });
 
     sendBtn.addEventListener('click', sendMessage);
@@ -561,6 +595,11 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
       textarea.value = '';
       sendBtn.disabled = true;
       textarea.style.height = '52px';
+      
+      // Reset userTyping karena textarea sudah kosong
+      if (window.sakaState) {
+        window.sakaState.userTyping = false;
+      }
 
       const loadingMsg = addMessage('', 'bot', true);
 
@@ -589,6 +628,17 @@ Jangan keluar dari karakter kecuali diminta eksplisit ganti persona.`
         const reply = data.choices[0].message.content.trim();
         addMessage(reply, 'bot');
         chatHistory.push({ role: "assistant", content: reply });
+        
+        // Set AI talking state
+        if (window.sakaState) {
+          window.sakaState.aiTalking = true;
+          setTimeout(() => {
+            if (window.sakaState) {
+              window.sakaState.aiTalking = false;
+            }
+          }, 4000);
+        }
+        
       } catch (error) {
         loadingMsg.remove();
         addMessage(`Aduh maaf ya... ada error nih: ${error.message} 😅`, 'bot');
